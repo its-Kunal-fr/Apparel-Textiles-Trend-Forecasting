@@ -1,0 +1,1 @@
+# Apparel-Textiles-Trend-Forecasting
