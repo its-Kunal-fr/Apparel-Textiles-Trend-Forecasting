@@ -13,7 +13,7 @@ from statsmodels.tsa.holtwinters import ExponentialSmoothing
 ROOT = Path(__file__).resolve().parents[1]
 RAW_DIR = ROOT / "data" / "raw"
 OUT_DIR = ROOT / "outputs"
-SERIES_ID = "MRTSSM448US"
+SERIES_ID = "MRTSSM448USS"
 SOURCE_URL = f"https://fred.stlouisfed.org/graph/fredgraph.csv?id={SERIES_ID}"
 HOLDOUT_MONTHS = 12
 FORECAST_MONTHS = 12
@@ -120,6 +120,19 @@ def save_plots(series: pd.Series, forecast: pd.DataFrame) -> None:
     fig.savefig(OUT_DIR / "forecast.png", dpi=160)
     plt.close(fig)
 
+    # Out-of-sample evidence: plot actual values against each model's holdout forecast.
+    fig, ax = plt.subplots(figsize=(11, 5.5))
+    ax.plot(test.index, test.values, marker="o", label="Actual holdout sales", linewidth=2)
+    for model_name, values in predictions.items():
+        ax.plot(test.index, values, marker=".", label=model_name)
+    ax.set(title="Actual vs Predicted Sales: Final 12-Month Holdout",
+           xlabel="Month", ylabel="Millions of current U.S. dollars")
+    ax.grid(True, alpha=0.25)
+    ax.legend()
+    fig.tight_layout()
+    fig.savefig(OUT_DIR / "holdout_actual_vs_predicted.png", dpi=160)
+    plt.close(fig)
+
 
 def main() -> None:
     OUT_DIR.mkdir(parents=True, exist_ok=True)
@@ -137,6 +150,49 @@ def main() -> None:
             for name, prediction in candidates.items()]
     comparison = pd.DataFrame(rows).sort_values("MAE")
     comparison.to_csv(OUT_DIR / "model_comparison.csv", index=False)
+
+    # Preserve actual and predicted values for every holdout month so the report
+    # can show worked evidence rather than only describing methods.
+    holdout = pd.DataFrame({"actual_millions_USD": test})
+    for model_name, predicted_values in candidates.items():
+        holdout[model_name] = predicted_values
+        holdout[f"{model_name}_error"] = test.to_numpy() - predicted_values
+    holdout.to_csv(OUT_DIR / "holdout_predictions.csv", index_label="date")
+
+    # Additional evidence: descriptive statistics and reproducible worked examples.
+    yoy_series = series.pct_change(12).dropna() * 100
+    latest = float(series.iloc[-1])
+    previous = float(series.iloc[-2])
+    same_month_last_year = float(series.iloc[-13])
+    latest_mom_pct = (latest / previous - 1) * 100
+    latest_yoy_pct = (latest / same_month_last_year - 1) * 100
+    stats = pd.DataFrame([{
+        "first_month": str(series.index[0].date()),
+        "latest_month": str(series.index[-1].date()),
+        "observations": int(len(series)),
+        "first_sales_millions_USD": float(series.iloc[0]),
+        "latest_sales_millions_USD": latest,
+        "mean_sales_millions_USD": float(series.mean()),
+        "median_sales_millions_USD": float(series.median()),
+        "minimum_sales_millions_USD": float(series.min()),
+        "minimum_date": str(series.idxmin().date()),
+        "maximum_sales_millions_USD": float(series.max()),
+        "maximum_date": str(series.idxmax().date()),
+        "latest_month_over_month_pct": float(latest_mom_pct),
+        "latest_year_over_year_pct": float(latest_yoy_pct),
+        "mean_yoy_latest_12_months_pct": float(yoy_series.iloc[-12:].mean()),
+    }])
+    stats.to_csv(OUT_DIR / "descriptive_statistics.csv", index=False)
+
+    # Save a simple business sensitivity scenario, explicitly not a forecast.
+    pd.DataFrame([
+        {"scenario": "Illustrative +5% monthly sales value", "assumption_pct": 5,
+         "reference_sales_millions_USD": latest, "change_millions_USD": latest * 0.05,
+         "note": "Sensitivity example only; not a forecast or causal estimate."},
+        {"scenario": "Illustrative -5% monthly sales value", "assumption_pct": -5,
+         "reference_sales_millions_USD": latest, "change_millions_USD": latest * -0.05,
+         "note": "Sensitivity example only; not a forecast or causal estimate."},
+    ]).to_csv(OUT_DIR / "business_scenarios.csv", index=False)
 
     best_name = str(comparison.iloc[0]["model"])
     forecast_functions = {
@@ -169,7 +225,12 @@ def main() -> None:
 
     summary = [
         "# Generated Analysis Summary", "",
-        f"- Data source: FRED series {SERIES_ID} ({SOURCE_URL})",
+        f"- Data source: U.S. Census Bureau via FRED series {SERIES_ID} ({SOURCE_URL})",
+        f"- Data range: {series.index[0].date()} to {series.index[-1].date()} ({len(series)} monthly observations).",
+        f"- Latest month-over-month change: {latest_mom_pct:.2f}% (calculated from latest two observations).",
+        f"- Latest year-over-year change: {latest_yoy_pct:.2f}% (calculated from the same month one year earlier).",
+        f"- Latest 12-month average year-over-year change: {yoy_series.iloc[-12:].mean():.2f}%.",
+        f"- Latest sales: ${latest:,.1f} million; mean sales over the full series: ${series.mean():,.1f} million.",
         f"- Latest observation: {series.index[-1].date()}",
         f"- Observations used: {len(series)} monthly values",
         f"- Latest sales observation: \${series.iloc[-1]:,.1f} million, nominal and seasonally adjusted",
@@ -177,6 +238,11 @@ def main() -> None:
         f"- Highest average calendar-month sales: {strongest}",
         f"- Lowest average calendar-month sales: {weakest}",
         f"- Best holdout model by MAE: **{best_name}**", "",
+        "## Worked examples using actual downloaded values", "",
+        f"- Month-over-month change: ({latest:,.1f} - {previous:,.1f}) / {previous:,.1f} × 100 = {latest_mom_pct:.2f}%.",
+        f"- Year-over-year change: ({latest:,.1f} - {same_month_last_year:,.1f}) / {same_month_last_year:,.1f} × 100 = {latest_yoy_pct:.2f}%.",
+        f"- Three-month average example: {series.iloc[-3]:,.1f}, {series.iloc[-2]:,.1f}, and {series.iloc[-1]:,.1f} average to {series.iloc[-3:].mean():,.1f} million USD.",
+        "- These examples are calculated from the current downloaded dataset; values can change when FRED revises or updates observations.", "",
         "## Holdout comparison", "",
         comparison.to_markdown(index=False, floatfmt=".2f"), "",
         "## Interpretation cautions", "",
@@ -184,6 +250,8 @@ def main() -> None:
         "- The month profile is descriptive and may reflect holidays, promotions, and channel mix.",
         "- The forecast range is approximate, not a formal prediction interval.",
         "- The forecast is a historical-pattern scenario, not a guarantee or causal explanation.",
+        "- The illustrative +/-5% business scenario is a sensitivity calculation, not a model-generated prediction.",
+        "- See holdout_predictions.csv and holdout_actual_vs_predicted.png for month-by-month out-of-sample evidence.",
         "- Review the model metrics and charts before writing numerical conclusions."
     ]
     (OUT_DIR / "summary.md").write_text("\n".join(summary) + "\n", encoding="utf-8")
