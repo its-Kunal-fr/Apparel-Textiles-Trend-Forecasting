@@ -20,7 +20,7 @@ Fibre prices, energy, freight, labour, exchange rates, tariffs, and supplier con
 Material traceability, recycled fibres, durability, waste reduction, and supplier transparency are relevant strategic topics, but consumer interest does not automatically imply a measurable sales premium in this dataset. Test demand or willingness-to-pay claims with specific evidence.
 
 ## Credible starting sources
-1. FRED — Retail Sales: Clothing and Clothing Accessory Stores: https://fred.stlouisfed.org/series/MRTSSM448US
+1. FRED — Retail Sales: Clothing and Clothing Accessory Stores: https://fred.stlouisfed.org/series/MRTSSM448USS
 2. U.S. Census Bureau — Monthly Retail Trade Survey: https://www.census.gov/retail/index.html
 3. McKinsey — State of Fashion reports: https://www.mckinsey.com/industries/retail/our-insights/state-of-fashion
 4. Textile Exchange — Materials Market Report and resources: https://textileexchange.org/knowledge-center/reports/
