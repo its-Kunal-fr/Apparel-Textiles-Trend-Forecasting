@@ -80,7 +80,7 @@ def calculate_metrics(actual: np.ndarray, predicted: np.ndarray) -> dict[str, fl
     return {"MAE": mae, "RMSE": rmse, "MAPE_percent": mape}
 
 
-def save_plots(series: pd.Series, forecast: pd.DataFrame) -> None:
+def save_plots(series: pd.Series, forecast: pd.DataFrame, test: pd.Series, predictions: dict) -> None:
     fig, ax = plt.subplots(figsize=(11, 5.5))
     ax.plot(series.index, series.values, label="Monthly retail sales", linewidth=1)
     ax.plot(series.index, series.rolling(12).mean(),
@@ -221,7 +221,7 @@ def main() -> None:
     monthly_means = series.groupby(series.index.month).mean()
     strongest = pd.Timestamp(2000, int(monthly_means.idxmax()), 1).strftime("%B")
     weakest = pd.Timestamp(2000, int(monthly_means.idxmin()), 1).strftime("%B")
-    save_plots(series, forecast)
+    save_plots(series, forecast, test, candidates)
 
     summary = [
         "# Generated Analysis Summary", "",
